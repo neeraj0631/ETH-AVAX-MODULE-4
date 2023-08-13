@@ -1,87 +1,42 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.0;
+pragma solidity ^0.8.9;
 
-contract DegenGamingToken {
-    string public constant name = "Degen Gaming Token";
-    string public constant symbol = "DGT";
-    uint8 public constant decimals = 18;
-    uint256 public totalSupply;
+import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
+import "@openzeppelin/contracts/access/Ownable.sol";
 
-    address public owner;
-    mapping(address => uint256) public balanceOf;
-    mapping(address => mapping(address => uint256)) public allowance;
+contract DegenToken is ERC20, Ownable {
+    mapping(string => uint256) private itemCost;
 
-    mapping(uint256 => uint256) public itemCosts; // Store item IDs and their corresponding token costs
+    event RewardRedeemed(address indexed account, string rewardName);
 
-    event Transfer(address indexed from, address indexed to, uint256 value);
-    event Approval(address indexed owner, address indexed spender, uint256 value);
-    event Burn(address indexed burner, uint256 value);
-    event Redeem(address indexed user, uint256 itemId, uint256 cost);
-
-    modifier onlyOwner() {
-        require(msg.sender == owner, "Only the owner can perform this action");
-        _;
+    constructor() ERC20("DegenToken", "DGN") {
+        _mint(msg.sender, 10000 * 10 ** decimals());
+        itemCost["Item1"] = 300;
+        itemCost["Item2"] = 500;
+        itemCost["Item3"] = 700;
+        itemCost["Item4"] = 900;
     }
 
-    constructor(uint256 initialSupply) {
-        owner = msg.sender;
-        totalSupply = initialSupply * 10**uint256(decimals);
-        balanceOf[msg.sender] = totalSupply;
+    function mint(address to, uint256 amount) public onlyOwner {
+        _mint(to, amount);
     }
 
-    function transfer(address to, uint256 value) external returns (bool) {
-        require(to != address(0), "Invalid recipient");
-        require(value <= balanceOf[msg.sender], "Insufficient balance");
-
-        balanceOf[msg.sender] -= value;
-        balanceOf[to] += value;
-        emit Transfer(msg.sender, to, value);
-        return true;
+    function redeem(string memory itemName) public {
+        uint256 cost = itemCost[itemName];
+        require(cost > 0, "Reward not available");
+        require(balanceOf(msg.sender) >= cost, "Insufficient balance");
+        _burn(msg.sender, cost);
+        emit RewardRedeemed(msg.sender, itemName);
     }
 
-    function approve(address spender, uint256 value) external returns (bool) {
-        allowance[msg.sender][spender] = value;
-        emit Approval(msg.sender, spender, value);
-        return true;
-    }
+    // Allow receiving Ether
+    receive() external payable {}
 
-    function transferFrom(address from, address to, uint256 value) external returns (bool) {
-        require(to != address(0), "Invalid recipient");
-        require(value <= balanceOf[from], "Insufficient balance");
-        require(value <= allowance[from][msg.sender], "Allowance exceeded");
+    // Fallback function to receive Ether
+    fallback() external payable {}
 
-        balanceOf[from] -= value;
-        balanceOf[to] += value;
-        allowance[from][msg.sender] -= value;
-        emit Transfer(from, to, value);
-        return true;
-    }
-
-    function mint(address to, uint256 value) external onlyOwner {
-        require(to != address(0), "Invalid recipient");
-        totalSupply += value;
-        balanceOf[to] += value;
-        emit Transfer(address(0), to, value);
-    }
-
-    function burn(uint256 value) external {
-        require(value <= balanceOf[msg.sender], "Insufficient balance");
-        balanceOf[msg.sender] -= value;
-        totalSupply -= value;
-        emit Burn(msg.sender, value);
-    }
-
-    function setItemCost(uint256 itemId, uint256 cost) external onlyOwner {
-        itemCosts[itemId] = cost;
-    }
-
-    function redeem(uint256 itemId) external {
-        require(itemCosts[itemId] > 0, "Invalid item ID");
-        require(balanceOf[msg.sender] >= itemCosts[itemId], "Insufficient balance for redemption");
-
-        uint256 cost = itemCosts[itemId];
-        balanceOf[msg.sender] -= cost;
-        emit Redeem(msg.sender, itemId, cost);
+    // Override to return the total supply of tokens
+    function totalSupply() public view override returns (uint256) {
+        return super.totalSupply();
     }
 }
-
